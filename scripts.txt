@@ -1,0 +1,86 @@
+e:
+cd E:\ANU\2023_s1\COMP8603\nerfstudio
+conda activate nerfstudio
+
+ssh -L7535:127.0.0.1:22 DUG_ANU
+scp -r filename DUG_ANU:/data/anu_nerftlo/nerfstudio/data/customized/
+data\customized\waterball_cube_pattern_opaque
+################################################ generate dataset ###############################################
+
+dataset name format: data_bg_light_sampling_objstatus (e.g. syringe_skydome_sun_sphere_trans)
+blender data\customized\syringe.blend --python data\view_train.py -b
+blender data\customized\syringe.blend --python data\view_val.py -b
+blender data\customized\syringe.blend --python data\view_test.py -b
+ns-train nerfacto --experiment-name syringe --pipeline.model.near-plane 2 --pipeline.model.far-plane 8 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.01 --vis viewer+wandb blender-depth-data --data data\customized\syringe_skydome_sun_sphere_trans --scale-factor 0.8
+
+##################################################### train #####################################################
+
+##### syringe #####
+set WANDB_PROJECT=nerfstudio-syringe
+ns-train nerfacto --experiment-name syringe --pipeline.model.near-plane 2 --pipeline.model.far-plane 8 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.01 --vis viewer+wandb blender-depth-data --scale_factor 0.8 --data data\customized\syringe_skydome_nosun_sphere_trans
+
+ns-train nerfacto --experiment-name syringe --pipeline.model.near-plane 2 --pipeline.model.far-plane 6 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.01 --pipeline.model.predict_normals True --vis viewer+wandb blender-depth-data --data data\customized\syringe_skydome
+
+ns-train nerfacto --experiment-name syringe --pipeline.model.background-color grey --pipeline.model.proposal-initial-sampler uniform --pipeline.model.near-plane 2 --pipeline.model.far-plane 12 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.1 --pipeline.model.disable-scene-contraction True --vis viewer+wandb blender-depth-data --scale-factor 0.8 --alpha-color grey --data data\customized\syringe_white_none_sphere_trans
+
+##### torus #####
+set WANDB_PROJECT=nerfstudio-torus
+ns-train nerfacto --experiment-name torus --pipeline.model.near-plane 2 --pipeline.model.far-plane 8 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.01 --vis viewer+wandb blender-depth-data --scale-factor 0.8 --data data\customized\torus_pureskyhdri_strength2_sphere
+
+##### deer #####
+set WANDB_PROJECT=nerfstudio-deer
+
+ns-train nerfacto --experiment-name deer --pipeline.model.near-plane 2 --pipeline.model.far-plane 8 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.01 --vis viewer+wandb blender-depth-data --data data\customized\deer --scale-factor 0.8
+
+ns-train nerfacto --experiment-name deer --pipeline.model.near-plane 2 --pipeline.model.far-plane 8 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.01 --vis viewer+wandb blender-depth-data --data data\customized\deer --scale-factor 0.8
+
+##### sphere #####
+ns-train nerfacto --experiment-name waterball --project-name nerfstudio-sphere --pipeline.model.background-color last_sample --pipeline.model.proposal-initial-sampler uniform --pipeline.model.near-plane 2 --pipeline.model.far-plane 6 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.1 --pipeline.model.disable-scene-contraction True blender-depth-data --scale-factor 1.0 --alpha-color white --data data/customized/waterball_cube/
+
+ns-train nerfacto --machine.device-type cuda --machine.num-devices 1 --experiment-name waterball --project-name nerfstudio-sphere --pipeline.model.background-color last_sample --pipeline.model.proposal-initial-sampler uniform --pipeline.model.near-plane 0.05 --pipeline.model.far-plane 14 --pipeline.model.num_nerf_samples_per_ray 128 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.1 --pipeline.model.disable-scene-contraction False blender-depth-data --scale-factor 0.1 --data data/customized/waterball_cube_pattern/
+
+ns-train nerfacto --machine.device-type cuda --machine.num-devices 1 --experiment-name waterball --project-name nerfstudio-sphere --pipeline.model.background-color last_sample --pipeline.model.proposal-initial-sampler uniform --pipeline.model.near-plane 2 --pipeline.model.far-plane 6 --pipeline.model.num_nerf_samples_per_ray 128 --pipeline.datamanager.camera-optimizer.mode off --pipeline.model.use-average-appearance-embedding False --pipeline.model.distortion-loss-mult 0.1 --pipeline.model.disable-scene-contraction True blender-depth-data --scale-factor 1.0 --data data/customized/waterball_skydome/
+
+--vis viewer+wandb
+
+###################################################### eval #####################################################
+
+ns-eval --load-config outputs\syringe\nerfacto\2023-05-14_202604\config.yml --output-path outputs\syringe\nerfacto\2023-05-14_202604\output_test.json
+
+ns-eval --load-config outputs\sphere\nerfacto\2023-06-04_132012\config.yml --output-path outputs\sphere\nerfacto\2023-06-04_132012\output_test.json
+
+ns-eval --load-config outputs\waterball\nerfacto\2023-08-13_151044\config.yml --output-path outputs\waterball\nerfacto\2023-08-13_151044\output_test.json
+
+ns-eval --load-config outputs\waterball\nerfacto\2023-08-13_141733\config.yml --output-path outputs\waterball\nerfacto\2023-08-13_141733\output_val.json
+
+ns-eval --load-config outputs\waterball\nerfacto\2023-08-26_220607\config.yml --output-path outputs\waterball\nerfacto\2023-08-26_220607\output_val.json
+
+##################################################### viewer #####################################################
+
+# syringe
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-05_202745\config.yml  # syringe_skydome_nosun_sphere_trans
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-06_002551\config.yml  # syringe_skyhdri_strength1_sphere_trans
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-05_214932\config.yml  # syringe_preetham_nosun_sphere_trans
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-06_124322\config.yml  # syringe_sunrisehdri_strength05_sphere_trans
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-07_171722\config.yml  # syringe_white_none_sphere_trans
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-14_202604\config.yml  # syringe_white_none_sphere_opaque
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-05_175812\config.yml  # syringe_white_none_sphere_trans_with_cube
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-06_163123\config.yml  # syringeL_white_none_sphere_trans
+ns-viewer --load-config outputs\syringe\nerfacto\2023-05-14_200336\config.yml  
+
+
+ns-viewer --load-config outputs\waterball\nerfacto\2023-08-13_141733\config.yml
+ns-viewer --load-config outputs\waterball\nerfacto\2023-08-13_151044\config.yml
+ns-viewer --load-config outputs\waterball\nerfacto\2023-08-26_220607\config.yml
+
+
+ns-export tsdf --load-config outputs\waterball\nerfacto\2023-08-26_220607/config.yml --output-dir exports/mesh/ --target-num-faces 10000 --num-pixels-per-side 512 --use-bounding-box True --bounding-box-min -1 -1 -1 --bounding-box-max 1 1 1
+
+
+
+PosixPath --> WindowsPath
+
+##################################################### render #####################################################
+ns-render --load-config outputs\syringe\nerfacto\2023-05-14_225144\config.yml --traj filename --camera-path-filename renders/camera_path.json --output-path renders\data\customized\syringe_studio_frombg_sphere_trans_2023-05-14_225144.mp4
+
+ns-render --load-config outputs\waterball\nerfacto\2023-07-17_110815/config.yml --traj filename --camera-path-filename renders/camera_path.json --output-path renders\data\customized\waterball.mp4
