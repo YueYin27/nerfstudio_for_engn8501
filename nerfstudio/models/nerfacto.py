@@ -388,7 +388,7 @@ class NerfactoModel(Model):
 
         weights = ray_samples.get_weights(field_outputs[FieldHeadNames.DENSITY])  # [32768, 128, 1]
 
-        self.field.get_density()
+        # self.field.get_density()
         # threshold = 0.02
         # weights_for_depth = weights.clone()
         # mask = weights_for_depth > threshold
@@ -397,20 +397,20 @@ class NerfactoModel(Model):
         # weights_for_depth[new_mask] = 0
 
         # plot weights vs depth
-        origins = ray_samples.frustums.origins  # [32768, 128, 3]
-        intersections_1 = ray_samples.frustums.intersections[0]  # [32768, 128, 3]
-        intersections_2 = ray_samples.frustums.intersections[1]  # [32768, 128, 3]
-        norm_dis1 = torch.norm(intersections_1[:, 0, :] - origins[:, 0, :], dim=1)  # [32768]
-        norm_dis2 = torch.norm(intersections_2[:, 0, :] - origins[:, -1, :], dim=1)  # [32768]
-        intersections_3 = ray_cube_intersection(origins=ray_samples.frustums.origins,
-                                                directions=ray_samples.frustums.directions,
-                                                cube_size=8.4 * 0.1)
-        norm_dis3 = torch.norm(intersections_3[:, -1, :] - origins[:, -1, :], dim=1)  # [32768]
-        # norm_dis3 = None
-        if not torch.isnan(norm_dis1[200:600]).all():
-            plot_weights_and_density(weights, field_outputs[FieldHeadNames.DENSITY],
-                                     (ray_samples.frustums.starts + ray_samples.frustums.ends) / 2,
-                                     200, 600, [norm_dis1, norm_dis2], norm_dis3, 0.1)
+        # origins = ray_samples.frustums.origins  # [32768, 128, 3]
+        # intersections_1 = ray_samples.frustums.intersections[0]  # [32768, 128, 3]
+        # intersections_2 = ray_samples.frustums.intersections[1]  # [32768, 128, 3]
+        # norm_dis1 = torch.norm(intersections_1[:, 0, :] - origins[:, 0, :], dim=1)  # [32768]
+        # norm_dis2 = torch.norm(intersections_2[:, 0, :] - origins[:, -1, :], dim=1)  # [32768]
+        # intersections_3 = ray_cube_intersection(origins=ray_samples.frustums.origins,
+        #                                         directions=ray_samples.frustums.directions,
+        #                                         cube_size=8.4 * 0.1)
+        # norm_dis3 = torch.norm(intersections_3[:, -1, :] - origins[:, -1, :], dim=1)  # [32768]
+        # # norm_dis3 = None
+        # if not torch.isnan(norm_dis1[200:600]).all():
+        #     plot_weights_and_density(weights, field_outputs[FieldHeadNames.DENSITY],
+        #                              (ray_samples.frustums.starts + ray_samples.frustums.ends) / 2,
+        #                              200, 600, [norm_dis1, norm_dis2], norm_dis3, 0.1)
 
         weights_list.append(weights)
         ray_samples_list.append(ray_samples)
