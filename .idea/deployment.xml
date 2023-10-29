@@ -6,7 +6,7 @@
       <paths name="DUG">
         <serverdata>
           <mappings>
-            <mapping deploy="/nerfstudio" local="$PROJECT_DIR$" />
+            <mapping deploy="/nerfstudio_for_engn8501" local="$PROJECT_DIR$" />
           </mappings>
           <excludedPaths>
             <excludedPath local="true" path="$PROJECT_DIR$/data" />

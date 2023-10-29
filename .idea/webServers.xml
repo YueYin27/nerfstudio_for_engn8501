@@ -3,7 +3,7 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="13c912e8-a45d-4c67-9e98-ac039abc47f5" name="DUG">
-        <fileTransfer rootFolder="/data/anu_nerftlo" accessType="SFTP" host="localhost" port="7535" sshConfigId="187c33bb-0b91-461b-ae02-760702f7a6fb" sshConfig="DUG_ANU" keyPair="true">
+        <fileTransfer rootFolder="/data/anu_8501/anu_yinyue" accessType="SFTP" host="localhost" port="7535" sshConfigId="187c33bb-0b91-461b-ae02-760702f7a6fb" sshConfig="anu_u7535192@localhost:7535 key" keyPair="true">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

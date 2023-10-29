@@ -5,6 +5,7 @@
       <sshConfig authType="PASSWORD" host="cluster1.cecs.anu.edu.au" id="b2b4851b-fd9e-4c65-b6f7-67260cf66b61" port="22" customName="SoCo" nameFormat="CUSTOM" username="u7535192" useOpenSSHConfig="true">
         <option name="customName" value="SoCo" />
       </sshConfig>
+      <sshConfig host="localhost" id="187c33bb-0b91-461b-ae02-760702f7a6fb" keyPath="$USER_HOME$/.ssh/id_rsa" port="7535" nameFormat="DESCRIPTIVE" username="anu_u7535192" useOpenSSHConfig="true" />
     </configs>
   </component>
 </project>
