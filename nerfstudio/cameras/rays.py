@@ -20,15 +20,16 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, Literal, Optional, Tuple, Union, overload, List, Any
 
 import torch
+import trimesh
 from jaxtyping import Float, Int, Shaped
 from torch import Tensor
 
-from nerfstudio.field_components.ray_refraction import WaterBallRefraction
+from nerfstudio.field_components.ray_refraction import WaterBallRefraction, MeshRefraction
 from nerfstudio.utils.math import Gaussians, conical_frustum_to_gaussian
 from nerfstudio.utils.tensor_dataclass import TensorDataclass
 
 TORCH_DEVICE = Union[str, torch.device]
-
+mesh = trimesh.load_mesh('water.ply')
 
 @dataclass
 class Frustums(TensorDataclass):
@@ -148,17 +149,17 @@ class RaySamples(TensorDataclass):
         ray_refraction_1 = WaterBallRefraction(origins, directions, positions, r1, radius)
         intersections_1, normals_1 = ray_refraction_1.get_intersections_and_normals('in')  # [4096, 48, 3]
         directions_1 = ray_refraction_1.snell_fn(normals_1)
-        positions, mask_1 = ray_refraction_1.get_updated_sample_points(intersections_1, directions_1, 'in',
-                                                                       torch.ones([positions.shape[0],
-                                                                                   positions.shape[1]],
-                                                                                  dtype=torch.bool,
-                                                                                  device=positions.device))
+        positions, mask_1 = ray_refraction_1.update_sample_points(intersections_1, directions_1, 'in',
+                                                                  torch.ones([positions.shape[0],
+                                                                              positions.shape[1]],
+                                                                             dtype=torch.bool,
+                                                                             device=positions.device))
 
         # 3. Get normals from the geometry, calculate new directions, and update positions after the second refraction
         ray_refraction_2 = WaterBallRefraction(intersections_1, directions_1, positions, r2, radius)
         intersections_2, normals_2 = ray_refraction_2.get_intersections_and_normals('out')
         directions_2 = ray_refraction_2.snell_fn(-normals_2)
-        positions, mask_2 = ray_refraction_2.get_updated_sample_points(intersections_2, directions_2, 'out', mask_1)
+        positions, mask_2 = ray_refraction_2.update_sample_points(intersections_2, directions_2, 'out', mask_1)
 
         self.frustums.intersections = [intersections_1, intersections_2]
 
@@ -175,6 +176,40 @@ class RaySamples(TensorDataclass):
                                                                            dim=-1)).unsqueeze(2)
         origins_new[mask_1] = origins_1[mask_1]
         origins_new[mask_2] = origins_2[mask_2]
+
+        return directions_new, origins_new
+
+    def get_refracted_rays1(self) -> Tuple[Any, Any]:
+        # Modify the origins and directions of frustums here
+        positions = self.frustums.get_positions()  # [4096, 48, 3] ([num_rays_per_batch, num_samples_per_ray, 3])
+
+        # Modify positions based on known geometry and Snell's law
+        # 1. Get origins, directions, r directly
+        origins = self.frustums.origins  # [4096, 48, 3]
+        directions = self.frustums.directions  # [4096, 48, 3]
+        r = 1.0 / 1.33
+
+        # 2. Get normals from the geometry, calculate new directions, and update positions after the first refraction
+        ray_refraction = MeshRefraction(origins, directions, positions, r)
+        intersections, normals = ray_refraction.get_intersections_and_normals(mesh)  # [4096, 48, 3]
+        directions_1 = ray_refraction.snell_fn(normals)
+
+        positions, mask = ray_refraction.update_sample_points(intersections, directions, 'in',
+                                                              torch.ones([positions.shape[0],
+                                                                          positions.shape[1]],
+                                                                         dtype=torch.bool,
+                                                                         device=positions.device))
+
+        self.frustums.intersections = [intersections]
+
+        # 4. Update ray_samples.frustums.directions
+        directions_new = directions.clone()
+        directions_new[mask] = directions_1[mask]
+
+        # 5. Update ray_samples.frustums.origins
+        origins_new = origins.clone()
+        origins_1 = intersections - directions_1 * torch.norm(origins - intersections, dim=-1).unsqueeze(2)
+        origins_new[mask] = origins_1[mask]
 
         return directions_new, origins_new
 

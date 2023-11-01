@@ -385,16 +385,24 @@ class NerfactoModel(Model):
             field_outputs = scale_gradients_by_distance_squared(field_outputs, ray_samples)
 
         # visualization(ray_samples, 489, 490)
+        # density, _ = self.field.get_density_grid()
+        # draw_heatmap(density)
 
         weights = ray_samples.get_weights(field_outputs[FieldHeadNames.DENSITY])  # [32768, 128, 1]
 
-        # self.field.get_density()
-        # threshold = 0.02
-        # weights_for_depth = weights.clone()
-        # mask = weights_for_depth > threshold
-        # cumsum_mask = mask.cumsum(dim=1)
-        # new_mask = cumsum_mask > 1
-        # weights_for_depth[new_mask] = 0
+        # search for the first density > threshold, and recompute the weights for depth maps
+        threshold = 25
+        density = (field_outputs[FieldHeadNames.DENSITY])  # [32768, 256, 1]
+
+        mask = density > threshold
+        cumsum_mask = mask.cumsum(dim=1)
+        first_greater_mask = (cumsum_mask == 1) & mask  # [32768, 256, 1]
+
+        first_greater_index = torch.argmax(first_greater_mask.int(), dim=1).unsqueeze(-1)  # [32768, 1]
+
+        # Extract the depth (distance) values for each ray at the first greater sample index
+        steps = (ray_samples.frustums.starts + ray_samples.frustums.ends) / 2
+        depth = torch.gather(steps, 1, first_greater_index).squeeze(-1)  # [32768, 1]
 
         # plot weights vs depth
         # origins = ray_samples.frustums.origins  # [32768, 128, 3]
@@ -416,9 +424,8 @@ class NerfactoModel(Model):
         ray_samples_list.append(ray_samples)
 
         rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], weights=weights)
-        # depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)
-        depth = self.renderer_depth(weights=weights
-                                    , ray_samples=ray_samples)
+        # depth = self.renderer_depth(weights=weights_for_depth, ray_samples=ray_samples)
+        # depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)  # [32768, 1]
         accumulation = self.renderer_accumulation(weights=weights)
 
         outputs = {

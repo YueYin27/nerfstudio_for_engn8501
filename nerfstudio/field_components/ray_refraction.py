@@ -1,6 +1,8 @@
 import numpy as np
 import plotly.graph_objects as go
 import torch
+import trimesh
+import open3d as o3d
 
 
 def visualization(ray_samples, idx_start, idx_end) -> None:
@@ -42,7 +44,7 @@ class RayRefraction:
         r: n1/n2
     """
 
-    def __init__(self, origins, directions, positions, r, radius):
+    def __init__(self, origins, directions, positions, r=None, radius=None):
         self.origins = origins
         self.directions = directions / torch.norm(directions, p=2, dim=2, keepdim=True)
         self.positions = positions
@@ -64,7 +66,7 @@ class RayRefraction:
         c = - torch.einsum('ijk, ijk -> ij', n, l)  # dot product, [4096, 48]
         return r * l + (r * c - torch.sqrt(1 - (r ** 2) * (1 - c ** 2))).unsqueeze(-1) * n
 
-    def get_updated_sample_points(self, intersections, directions_new, condition, start):
+    def update_sample_points(self, intersections, directions_new, condition, mask):
         raise NotImplementedError
 
 
@@ -79,6 +81,9 @@ class WaterBallRefraction(RayRefraction):
 
         Args:
             condition: -
+        Returns:
+            intersections: intersections
+            normals: normals
         """
 
         # Define the sphere
@@ -118,7 +123,7 @@ class WaterBallRefraction(RayRefraction):
         return intersections, normals
 
     # @functools.lru_cache(maxsize=128)
-    def get_updated_sample_points(self, intersections, directions_new, condition, mask):
+    def update_sample_points(self, intersections, directions_new, condition, mask):
         """Update sample points
 
         Args:
@@ -141,6 +146,79 @@ class WaterBallRefraction(RayRefraction):
         # 2. Get the mask of all samples to be updated
         first_idx = first_idx.unsqueeze(1)
         # mask = torch.arange(48).to(device='cuda:0') >= first_idx
+        mask = ~torch.isnan(intersections).any(dim=2) & ~torch.isnan(directions_new).any(dim=2)
+        mask = mask & (torch.arange(self.positions.shape[1], device=self.positions.device).unsqueeze(0) >= first_idx)
+
+        # 3. Move the original sample points onto the refracted ray
+        distances_to_intersection = torch.norm(self.positions - intersections, dim=2)
+        distances_to_intersection[~mask] = float('nan')
+        updated_positions = intersections + distances_to_intersection.unsqueeze(2) * directions_new
+        self.positions[mask] = updated_positions[mask]
+
+        return self.positions, mask
+
+
+class MeshRefraction(RayRefraction):
+
+    def __init__(self, origins, directions, positions, r):
+        super().__init__(origins, directions, positions, r)
+
+    def get_intersections_and_normals(self, mesh):
+
+        """Get intersections and surface normals
+
+        Args:
+            mesh: mesh of the 3D object
+        Returns:
+            intersections: intersections
+            normals: normals
+        """
+        device = self.origins.device
+        scale_factor = 0.1
+
+        # Convert trimesh vertices and faces to tensors
+        vertices_tensor = o3d.core.Tensor(mesh.vertices * scale_factor, dtype=o3d.core.Dtype.Float32)  # Scale mesh.vertices!
+        triangles_tensor = o3d.core.Tensor(mesh.faces, dtype=o3d.core.Dtype.UInt32)  # Convert to UInt32
+
+        scene = o3d.t.geometry.RaycastingScene()  # Create a RaycastingScene
+        scene.add_triangles(vertices_tensor, triangles_tensor)  # add the triangles
+        rays = torch.cat((self.origins, self.directions), dim=-1).cpu().numpy()  # Prepare rays in the required format
+        rays_o3d = o3d.core.Tensor(rays, dtype=o3d.core.Dtype.Float32)
+        results = scene.cast_rays(rays_o3d)  # Cast rays
+
+        # Convert results to PyTorch tensors and move to the correct device
+        t_hit = torch.tensor(results['t_hit'].cpu().numpy(), device=device).unsqueeze(-1)
+        intersections = self.origins + t_hit * self.directions
+        normals = torch.tensor(results["primitive_normals"].cpu().numpy(), device=device)
+
+        # check if the normals are pointing upwards
+        normal_up = torch.tensor([0.0, 0.0, 1.0], device=device)
+        dot_products = torch.einsum('ijk,k->ij', normals, normal_up)
+        mask = (dot_products > 0).unsqueeze(-1)
+        intersections = torch.where(mask, intersections, torch.tensor(float('nan'), device=device))
+        normals = torch.where(mask, normals, torch.tensor(float('nan'), device=device))
+
+        return intersections, normals
+
+    def update_sample_points(self, intersections, directions_new, condition, mask):
+        """Update sample points
+
+                Args:
+                    intersections: intersections of the camera ray with the surface of the object
+                    directions_new: refracted directions
+                    condition: -
+                    mask: -
+                """
+        # 1. Get the index of the first point to be updated
+        mask = torch.logical_and((torch.norm(self.positions - self.origins, dim=-1)) >
+                                 (torch.norm(intersections - self.origins, dim=-1)), mask)  # samples after intersections
+        mask = mask.unsqueeze(-1).expand(-1, -1, 3)
+        masked_positions = torch.where(mask, self.positions, intersections)
+        distances = torch.norm(intersections - masked_positions, dim=-1)  # Calculate Euclidean distances [4096, 48]
+        first_idx = torch.argmin(torch.where(distances != 0, distances, torch.finfo(distances.dtype).max), dim=1)
+
+        # 2. Get the mask of all samples to be updated
+        first_idx = first_idx.unsqueeze(1)
         mask = ~torch.isnan(intersections).any(dim=2) & ~torch.isnan(directions_new).any(dim=2)
         mask = mask & (torch.arange(self.positions.shape[1], device=self.positions.device).unsqueeze(0) >= first_idx)
 
