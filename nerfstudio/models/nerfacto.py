@@ -379,30 +379,34 @@ class NerfactoModel(Model):
 
     def get_outputs(self, ray_bundle: RayBundle):
         ray_samples: RaySamples
-        ray_samples, weights_list, ray_samples_list = self.proposal_sampler(ray_bundle, density_fns=self.density_fns)
+        ray_samples_ref: RaySamples
+        ray_samples, weights_list, ray_samples_list, ray_samples_ref, weights_list_ref, ray_samples_list_ref = self.proposal_sampler(ray_bundle, density_fns=self.density_fns)
         field_outputs = self.field.forward(ray_samples, compute_normals=self.config.predict_normals)
+        field_outputs_ref = self.field.forward(ray_samples_ref, compute_normals=self.config.predict_normals)
         if self.config.use_gradient_scaling:
             field_outputs = scale_gradients_by_distance_squared(field_outputs, ray_samples)
+            field_outputs_ref = scale_gradients_by_distance_squared(field_outputs_ref, ray_samples_ref)
 
         # visualization(ray_samples, 489, 490)
         # density, _ = self.field.get_density_grid()
         # draw_heatmap(density)
 
         weights = ray_samples.get_weights(field_outputs[FieldHeadNames.DENSITY])  # [32768, 128, 1]
+        weights_ref = ray_samples_ref.get_weights(field_outputs_ref[FieldHeadNames.DENSITY])  # [32768, 128, 1]
 
-        # search for the first density > threshold, and recompute the weights for depth maps
-        threshold = 25
-        density = (field_outputs[FieldHeadNames.DENSITY])  # [32768, 256, 1]
-
-        mask = density > threshold
-        cumsum_mask = mask.cumsum(dim=1)
-        first_greater_mask = (cumsum_mask == 1) & mask  # [32768, 256, 1]
-
-        first_greater_index = torch.argmax(first_greater_mask.int(), dim=1).unsqueeze(-1)  # [32768, 1]
-
-        # Extract the depth (distance) values for each ray at the first greater sample index
-        steps = (ray_samples.frustums.starts + ray_samples.frustums.ends) / 2
-        depth = torch.gather(steps, 1, first_greater_index).squeeze(-1)  # [32768, 1]
+        # # search for the first density > threshold, and recompute the weights for depth maps
+        # threshold = 25
+        # density = (field_outputs[FieldHeadNames.DENSITY])  # [32768, 256, 1]
+        #
+        # mask = density > threshold
+        # cumsum_mask = mask.cumsum(dim=1)
+        # first_greater_mask = (cumsum_mask == 1) & mask  # [32768, 256, 1]
+        #
+        # first_greater_index = torch.argmax(first_greater_mask.int(), dim=1).unsqueeze(-1)  # [32768, 1]
+        #
+        # # Extract the depth (distance) values for each ray at the first greater sample index
+        # steps = (ray_samples.frustums.starts + ray_samples.frustums.ends) / 2
+        # depth = torch.gather(steps, 1, first_greater_index).squeeze(-1)  # [32768, 1]
 
         # plot weights vs depth
         # origins = ray_samples.frustums.origins  # [32768, 128, 3]
@@ -421,11 +425,14 @@ class NerfactoModel(Model):
         #                              200, 600, [norm_dis1, norm_dis2], norm_dis3, 0.1)
 
         weights_list.append(weights)
+        weights_list_ref.append(weights_ref)
         ray_samples_list.append(ray_samples)
+        ray_samples_list_ref.append(ray_samples_ref)
 
-        rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], weights=weights)
+        rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], rgb_ref=field_outputs_ref[FieldHeadNames.RGB],
+                                weights=weights, weights_ref=weights_ref, ray_samples=ray_samples_ref)
         # depth = self.renderer_depth(weights=weights_for_depth, ray_samples=ray_samples)
-        # depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)  # [32768, 1]
+        depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)  # [32768, 1]
         accumulation = self.renderer_accumulation(weights=weights)
 
         outputs = {

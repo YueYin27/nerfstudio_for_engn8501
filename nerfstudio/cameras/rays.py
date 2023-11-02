@@ -25,11 +25,13 @@ from jaxtyping import Float, Int, Shaped
 from torch import Tensor
 
 from nerfstudio.field_components.ray_refraction import WaterBallRefraction, MeshRefraction
+from nerfstudio.field_components.ray_reflection import RayReflection
 from nerfstudio.utils.math import Gaussians, conical_frustum_to_gaussian
 from nerfstudio.utils.tensor_dataclass import TensorDataclass
 
 TORCH_DEVICE = Union[str, torch.device]
 mesh = trimesh.load_mesh('water.ply')
+
 
 @dataclass
 class Frustums(TensorDataclass):
@@ -48,7 +50,11 @@ class Frustums(TensorDataclass):
     offsets: Optional[Float[Tensor, "*bs 3"]] = None
     """Offsets for each sample position"""
     intersections: Optional[Float[Tensor, "*bs 3"]] = None
-    """Intersections of each ray and surfaces"""
+    """Intersections between each ray and surfaces"""
+    normals: Optional[Float[Tensor, "*bs 3"]] = None
+    """normals at each intersection"""
+    mask: Optional = None
+    """mask"""
 
     def get_positions(self) -> Float[Tensor, "*batch 3"]:
         """Calculates "center" position of frustum. Not weighted by mass.
@@ -133,7 +139,7 @@ class RaySamples(TensorDataclass):
     #     super().__post_init__()
     #     self.get_refracted_rays()
 
-    def get_refracted_rays(self) -> Tuple[Any, Any]:
+    def get_refracted_rays1(self) -> None:
         # Modify the origins and directions of frustums here
         positions = self.frustums.get_positions()  # [4096, 48, 3] ([num_rays_per_batch, num_samples_per_ray, 3])
 
@@ -177,13 +183,14 @@ class RaySamples(TensorDataclass):
         origins_new[mask_1] = origins_1[mask_1]
         origins_new[mask_2] = origins_2[mask_2]
 
-        return directions_new, origins_new
+        self.frustums.directions = directions_new
+        self.frustums.origins = origins_new
 
-    def get_refracted_rays1(self) -> Tuple[Any, Any]:
+    def get_refracted_rays(self):
         # Modify the origins and directions of frustums here
         positions = self.frustums.get_positions()  # [4096, 48, 3] ([num_rays_per_batch, num_samples_per_ray, 3])
 
-        # Modify positions based on known geometry and Snell's law
+        # Refraction: Modify positions based on known geometry and Snell's law
         # 1. Get origins, directions, r directly
         origins = self.frustums.origins  # [4096, 48, 3]
         directions = self.frustums.directions  # [4096, 48, 3]
@@ -194,28 +201,52 @@ class RaySamples(TensorDataclass):
         intersections, normals = ray_refraction.get_intersections_and_normals(mesh)  # [4096, 48, 3]
         directions_1 = ray_refraction.snell_fn(normals)
 
-        positions, mask = ray_refraction.update_sample_points(intersections, directions, 'in',
-                                                              torch.ones([positions.shape[0],
-                                                                          positions.shape[1]],
-                                                                         dtype=torch.bool,
-                                                                         device=positions.device))
+        positions_new, mask, inter_id = ray_refraction.update_sample_points(intersections, directions, 'in',
+                                                                            torch.ones([positions.shape[0],
+                                                                                        positions.shape[1]],
+                                                                                       dtype=torch.bool,
+                                                                                       device=positions.device))
 
         self.frustums.intersections = [intersections]
+        self.frustums.normals = [normals]
+        self.frustums.mask = mask
 
-        # 4. Update ray_samples.frustums.directions
+        # 3. Update ray_samples.frustums.directions
         directions_new = directions.clone()
         directions_new[mask] = directions_1[mask]
 
-        # 5. Update ray_samples.frustums.origins
+        # 4. Update ray_samples.frustums.origins
         origins_new = origins.clone()
         origins_1 = intersections - directions_1 * torch.norm(origins - intersections, dim=-1).unsqueeze(2)
         origins_new[mask] = origins_1[mask]
 
-        return directions_new, origins_new
-
-    def update_origins_directions(self, directions_new, origins_new) -> None:
         self.frustums.directions = directions_new
         self.frustums.origins = origins_new
+
+        return intersections, normals, mask
+
+    def get_reflected_rays(self, intersections, normals, mask) -> None:
+        origins = self.frustums.origins
+        directions = self.frustums.directions
+        positions = self.frustums.get_positions()
+
+        # 1) Get reflective directions
+        ray_reflection = RayReflection(origins, directions, positions)
+        directions_1 = ray_reflection.get_reflected_directions(normals)
+        ray_reflection.update_sample_points(intersections, directions_1, mask)
+
+        # 2) Update ray_samples.frustums.directions
+        directions_reflection_new = directions.clone()
+        directions_reflection_new[mask] = directions_1[mask]
+
+        # 3) Update ray_samples.frustums.origins
+        origins_reflection_new = origins.clone()
+        origins_reflection_1 = intersections - directions_1 * torch.norm(origins - intersections, dim=-1).unsqueeze(2)
+        origins_reflection_new[mask] = origins_reflection_1[mask]
+
+        self.frustums.intersections = [intersections]
+        self.frustums.normals = [normals]
+        self.frustums.mask = mask
 
     def get_straight_rays(self) -> None:
         # Modify the origins and directions of frustums here

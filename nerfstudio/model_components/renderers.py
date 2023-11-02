@@ -38,6 +38,7 @@ from torch import Tensor, nn
 from nerfstudio.cameras.rays import RaySamples
 from nerfstudio.utils import colors
 from nerfstudio.utils.math import components_from_spherical_harmonics, safe_normalize
+from nerfstudio.field_components.ray_reflection import RayReflection
 
 BackgroundColor = Union[Literal["random", "last_sample", "black", "white"], Float[Tensor, "3"]]
 BACKGROUND_COLOR_OVERRIDE: Optional[Float[Tensor, "3"]] = None
@@ -98,7 +99,72 @@ class RGBRenderer(nn.Module):
                 weights[..., 0], values=None, ray_indices=ray_indices, n_rays=num_rays
             )
         else:
-            comp_rgb = torch.sum(weights * rgb, dim=-2)
+            comp_rgb = torch.sum(weights * rgb, dim=-2)  # weights: [4096, 256, 1]; rgb: [4096, 256, 3]
+            accumulated_weight = torch.sum(weights, dim=-2)
+
+        if BACKGROUND_COLOR_OVERRIDE is not None:
+            background_color = BACKGROUND_COLOR_OVERRIDE
+        if background_color == "last_sample":
+            background_color = rgb[..., -1, :]
+        if background_color == "random":
+            background_color = torch.rand_like(comp_rgb).to(rgb.device)
+        if isinstance(background_color, str) and background_color in colors.COLORS_DICT:
+            background_color = colors.COLORS_DICT[background_color].to(rgb.device)
+
+        assert isinstance(background_color, torch.Tensor)
+        comp_rgb = comp_rgb + background_color.to(weights.device) * (1.0 - accumulated_weight)
+
+        return comp_rgb
+
+    def combine_rgb_ref(
+            cls,
+            rgb: Float[Tensor, "*bs num_samples 3"],
+            rgb_ref: Float[Tensor, "*bs num_samples 3"],
+            weights: Float[Tensor, "*bs num_samples 1"],
+            weights_ref: Float[Tensor, "*bs num_samples 1"],
+            background_color: BackgroundColor = "random",
+            ray_indices: Optional[Int[Tensor, "num_samples"]] = None,
+            num_rays: Optional[int] = None,
+            ray_samples: RaySamples = None,
+    ) -> Float[Tensor, "*bs 3"]:
+        """Composite samples along ray and render color image
+
+        Args:
+            rgb: RGB for each sample
+            rgb_ref: RGB for each sample along the reflected ray
+            weights: Weights for each sample
+            weights_ref: Weights for each sample
+            background_color: Background color as RGB.
+            ray_indices: Ray index for each sample, used when samples are packed.
+            num_rays: Number of rays, used when samples are packed.
+            ray_samples: Ray samples.
+
+        Returns:
+            Outputs rgb values.
+        """
+        if ray_indices is not None and num_rays is not None:
+            # Necessary for packed samples from volumetric ray sampler
+            if background_color == "last_sample":
+                raise NotImplementedError("Background color 'last_sample' not implemented for packed samples.")
+            comp_rgb = nerfacc.accumulate_along_rays(
+                weights[..., 0], values=rgb, ray_indices=ray_indices, n_rays=num_rays
+            )
+            accumulated_weight = nerfacc.accumulate_along_rays(
+                weights[..., 0], values=None, ray_indices=ray_indices, n_rays=num_rays
+            )
+        else:
+            # TODO: sum up reflected rays and refractive rays
+            normals = ray_samples.frustums.normals[0]
+            ray_reflection = RayReflection(ray_samples.frustums.origins, ray_samples.frustums.directions,
+                                           ray_samples.frustums.get_positions(), 1.0 / 1.33)
+            R = ray_reflection.fresnel_fn(normals)[:, 0].unsqueeze(1)  # [4096]
+            R = torch.where(torch.isnan(R), torch.tensor(0.09, device=R.device), R)
+            # R = torch.full((weights.shape[0], 1), 0.09, device=weights.device)  # [4096]
+            comp_rgb_refraction = torch.sum(weights * rgb, dim=-2)  # [4096, 3]
+            comp_rgb_reflection = torch.sum(weights_ref * rgb_ref, dim=-2)  # [4096, 3]
+            comp_rgb = R * comp_rgb_reflection + (1-R) * comp_rgb_refraction   # [4096, 3]
+
+            # comp_rgb = torch.sum(weights * rgb, dim=-2)  # weights: [4096, 256, 1]; rgb: [4096, 256, 3]
             accumulated_weight = torch.sum(weights, dim=-2)
 
         if BACKGROUND_COLOR_OVERRIDE is not None:
@@ -118,17 +184,23 @@ class RGBRenderer(nn.Module):
     def forward(
         self,
         rgb: Float[Tensor, "*bs num_samples 3"],
+        rgb_ref: Float[Tensor, "*bs num_samples 3"],
         weights: Float[Tensor, "*bs num_samples 1"],
+        weights_ref: Float[Tensor, "*bs num_samples 1"],
         ray_indices: Optional[Int[Tensor, "num_samples"]] = None,
         num_rays: Optional[int] = None,
+        ray_samples: RaySamples = None,
     ) -> Float[Tensor, "*bs 3"]:
         """Composite samples along ray and render color image
 
         Args:
+            rgb_ref: RGB for each sample
             rgb: RGB for each sample
             weights: Weights for each sample
+            weights_ref: Weights for each sample
             ray_indices: Ray index for each sample, used when samples are packed.
             num_rays: Number of rays, used when samples are packed.
+            ray_samples: Ray samples.
 
         Returns:
             Outputs of rgb values.
@@ -136,8 +208,13 @@ class RGBRenderer(nn.Module):
 
         if not self.training:
             rgb = torch.nan_to_num(rgb)
-        rgb = self.combine_rgb(
-            rgb, weights, background_color=self.background_color, ray_indices=ray_indices, num_rays=num_rays
+            rgb_ref = torch.nan_to_num(rgb_ref)
+        # rgb = self.combine_rgb(
+        #     rgb, weights, background_color=self.background_color, ray_indices=ray_indices, num_rays=num_rays
+        # )
+        rgb = self.combine_rgb_ref(
+            rgb, rgb_ref, weights, weights_ref, background_color=self.background_color,
+            ray_indices=ray_indices, num_rays=num_rays, ray_samples=ray_samples
         )
         if not self.training:
             torch.clamp_(rgb, min=0.0, max=1.0)

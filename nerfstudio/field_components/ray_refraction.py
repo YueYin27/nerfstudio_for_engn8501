@@ -228,4 +228,4 @@ class MeshRefraction(RayRefraction):
         updated_positions = intersections + distances_to_intersection.unsqueeze(2) * directions_new
         self.positions[mask] = updated_positions[mask]
 
-        return self.positions, mask
+        return self.positions, mask, first_idx

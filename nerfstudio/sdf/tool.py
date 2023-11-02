@@ -5,11 +5,14 @@ import open3d as o3d
 # load mesh
 mesh = trimesh.load_mesh('water.ply')
 # create some rays
-ray_origins = torch.tensor([[0.1619, -0.1041,  0.3506]])  # [num_rays, num_samples, coordinates]
-ray_directions = torch.tensor([[-0.1439,  0.5516, -0.8216]])  # [num_rays, num_samples, coordinates]
+# ray_origins = torch.tensor([[0.0, 0.0,  0.4]])  # [num_rays, num_samples, coordinates]
+# ray_directions = torch.tensor([[0.0,  0.0, -1.0]])  # [num_rays, num_samples, coordinates]
+ray_origins = torch.tensor([[[0.0, 0.0,  0.4]]])  # [num_rays, num_samples, coordinates]
+ray_directions = torch.tensor([[[0.0,  0.0, -1.0]]])  # [num_rays, num_samples, coordinates]
+scale_vector = 0.1
 
 # Convert trimesh vertices and faces to tensors
-vertices_tensor = o3d.core.Tensor(mesh.vertices, dtype=o3d.core.Dtype.Float32)
+vertices_tensor = o3d.core.Tensor(mesh.vertices * 0.1, dtype=o3d.core.Dtype.Float32)
 triangles_tensor = o3d.core.Tensor(mesh.faces, dtype=o3d.core.Dtype.UInt32)  # Convert to UInt32
 
 scene = o3d.t.geometry.RaycastingScene()  # Create a RaycastingScene
@@ -24,8 +27,34 @@ print(intersections)
 normals = results["primitive_normals"].numpy()  # unit normals
 print(normals)
 
+dot_products = torch.einsum('ijk,ijk->ij', ray_directions, normals)
 
+# Calculate the reflected direction
+# The operation is batched over the first two dimensions
+reflected_directions = ray_directions - 2 * dot_products.unsqueeze(-1) * normals
 
+# Normalize the reflected directions
+reflection_direction = torch.nn.functional.normalize(reflected_directions, dim=2)
+
+r = 1/1.33  # n1/n2
+l = ray_directions  # [4096, 48, 3]
+
+# Calculate the cosine of the angle of incidence
+cos_theta_i = -torch.einsum('ijk,ijk->ij', l, normals)
+print(cos_theta_i)
+sin_theta_i_squared = 1 - cos_theta_i ** 2
+
+# Calculate the sine of the refraction angle using Snell's law
+sin_theta_t_squared = r ** 2 * sin_theta_i_squared
+cos_theta_t = torch.sqrt(1 - sin_theta_t_squared)
+
+# Calculate Rs and Rp using the Fresnel equations
+Rs = ((r * cos_theta_i - cos_theta_t) / (r * cos_theta_i + cos_theta_t)) ** 2
+Rp = ((r * cos_theta_t - cos_theta_i) / (cos_theta_i + r * cos_theta_t)) ** 2
+
+# Calculate the average reflectance
+R = (Rs + Rp) / 2
+print(Rs,Rp,R)
 
 # Convert trimesh mesh to Open3D TriangleMesh
 mesh_o3d = o3d.geometry.TriangleMesh(
