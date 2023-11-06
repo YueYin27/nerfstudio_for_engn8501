@@ -135,10 +135,6 @@ class RaySamples(TensorDataclass):
     times: Optional[Float[Tensor, "*batch 1"]] = None
     """Times at which rays are sampled"""
 
-    # def __post_init__(self) -> None:
-    #     super().__post_init__()
-    #     self.get_refracted_rays()
-
     def get_refracted_rays_old(self) -> None:
         # Modify the origins and directions of frustums here
         positions = self.frustums.get_positions()  # [4096, 48, 3] ([num_rays_per_batch, num_samples_per_ray, 3])

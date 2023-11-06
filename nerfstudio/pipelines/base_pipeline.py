@@ -463,7 +463,7 @@ class VanillaPipeline(Pipeline):
 
                 # save rgb images
                 rgb_img = images_dict['img'].cpu().numpy()
-                rgb_dir = os.path.join(output_dir, 'rgb_images/test_NEW_sigma_5.0')
+                rgb_dir = os.path.join(output_dir, 'rgb_images/test')
                 if not os.path.exists(rgb_dir):
                     os.makedirs(rgb_dir)
                 plt.imsave(os.path.join(rgb_dir, 'r_' + str(idx) + '.png'), rgb_img)

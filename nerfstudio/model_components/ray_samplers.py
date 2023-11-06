@@ -593,7 +593,7 @@ class ProposalNetworkSampler(Sampler):
                 # Uniform sampling because we need to start with some samples
                 ray_samples = self.initial_sampler(ray_bundle, num_samples=num_samples)
                 ray_samples_ref = self.initial_sampler(ray_bundle, num_samples=num_samples)
-                intersections, normals, mask = ray_samples.get_refracted_rays()
+                intersections, normals, mask = ray_samples.get_refracted_rays()  # use it for refraction
                 ray_samples_ref.get_reflected_rays(intersections, normals, mask)
             else:
                 # PDF sampling based on the last samples and their weights
@@ -603,7 +603,7 @@ class ProposalNetworkSampler(Sampler):
 
                 ray_samples = self.pdf_sampler(ray_bundle, ray_samples, annealed_weights, num_samples=num_samples)
                 ray_samples_ref = self.pdf_sampler(ray_bundle, ray_samples_ref, annealed_weights, num_samples=num_samples)
-                intersections, normals, mask = ray_samples.get_refracted_rays()
+                intersections, normals, mask = ray_samples.get_refracted_rays()  # use it for refraction
                 ray_samples_ref.get_reflected_rays(intersections, normals, mask)
 
             if is_prop:
