@@ -429,8 +429,8 @@ class NerfactoModel(Model):
         ray_samples_list.append(ray_samples)
         ray_samples_list_ref.append(ray_samples_ref)
 
-        rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], rgb_ref=field_outputs_ref[FieldHeadNames.RGB],
-                                weights=weights, weights_ref=weights_ref, ray_samples=ray_samples_ref)
+        rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], weights=weights, ray_samples=ray_samples_ref,
+                                rgb_ref=field_outputs_ref[FieldHeadNames.RGB], weights_ref=weights_ref,)
         # depth = self.renderer_depth(weights=weights_for_depth, ray_samples=ray_samples)
         depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)  # [32768, 1]
         accumulation = self.renderer_accumulation(weights=weights)

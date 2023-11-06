@@ -145,7 +145,7 @@ def lossfun_distortion_refractive(t, w, ray_samples):
     https://github.com/kakaobrain/NeRF-Factory/blob/f61bb8744a5cb4820a4d968fb3bfbed777550f4a/src/model/mipnerf360/helper.py#L142
     https://github.com/google-research/multinerf/blob/b02228160d3179300c7d499dca28cb9ca3677f32/internal/stepfun.py#L266
     """
-    scale_factor, s_near, s_far = 0.1, 0.05, 14.0
+    scale_factor, s_near, s_far = 0.1, 0.05, 14.0  # replace it with the values you use
     ray_samples.get_refracted_rays()
     intersection_0, intersection_1 = ray_samples.frustums.intersections  # get intersections
     intersection_0 = (intersection_0 / scale_factor - s_near) / (s_far - s_near)

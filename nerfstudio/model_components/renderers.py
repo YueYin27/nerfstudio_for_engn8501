@@ -119,13 +119,13 @@ class RGBRenderer(nn.Module):
     def combine_rgb_ref(
             cls,
             rgb: Float[Tensor, "*bs num_samples 3"],
-            rgb_ref: Float[Tensor, "*bs num_samples 3"],
             weights: Float[Tensor, "*bs num_samples 1"],
-            weights_ref: Float[Tensor, "*bs num_samples 1"],
             background_color: BackgroundColor = "random",
             ray_indices: Optional[Int[Tensor, "num_samples"]] = None,
             num_rays: Optional[int] = None,
             ray_samples: RaySamples = None,
+            rgb_ref: Float[Tensor, "*bs num_samples 3"] = None,
+            weights_ref: Float[Tensor, "*bs num_samples 1"] = None,
     ) -> Float[Tensor, "*bs 3"]:
         """Composite samples along ray and render color image
 
@@ -153,13 +153,13 @@ class RGBRenderer(nn.Module):
                 weights[..., 0], values=None, ray_indices=ray_indices, n_rays=num_rays
             )
         else:
-            # TODO: sum up reflected rays and refractive rays
+            # sum up reflected rays and refractive rays
             normals = ray_samples.frustums.normals[0]
             ray_reflection = RayReflection(ray_samples.frustums.origins, ray_samples.frustums.directions,
                                            ray_samples.frustums.get_positions(), 1.0 / 1.33)
             R = ray_reflection.fresnel_fn(normals)[:, 0].unsqueeze(1)  # [4096]
-            R = torch.where(torch.isnan(R), torch.tensor(0.09, device=R.device), R)
-            # R = torch.full((weights.shape[0], 1), 0.09, device=weights.device)  # [4096]
+            R = torch.where(torch.isnan(R), torch.tensor(0.1, device=R.device), R)
+            # R = torch.full((weights.shape[0], 1), 1.0, device=weights.device)  # [4096]
             comp_rgb_refraction = torch.sum(weights * rgb, dim=-2)  # [4096, 3]
             comp_rgb_reflection = torch.sum(weights_ref * rgb_ref, dim=-2)  # [4096, 3]
             comp_rgb = R * comp_rgb_reflection + (1-R) * comp_rgb_refraction   # [4096, 3]
@@ -184,12 +184,12 @@ class RGBRenderer(nn.Module):
     def forward(
         self,
         rgb: Float[Tensor, "*bs num_samples 3"],
-        rgb_ref: Float[Tensor, "*bs num_samples 3"],
         weights: Float[Tensor, "*bs num_samples 1"],
-        weights_ref: Float[Tensor, "*bs num_samples 1"],
         ray_indices: Optional[Int[Tensor, "num_samples"]] = None,
         num_rays: Optional[int] = None,
         ray_samples: RaySamples = None,
+        rgb_ref: Float[Tensor, "*bs num_samples 3"] = None,
+        weights_ref: Float[Tensor, "*bs num_samples 1"] = None,
     ) -> Float[Tensor, "*bs 3"]:
         """Composite samples along ray and render color image
 
@@ -208,13 +208,14 @@ class RGBRenderer(nn.Module):
 
         if not self.training:
             rgb = torch.nan_to_num(rgb)
-            rgb_ref = torch.nan_to_num(rgb_ref)
+            if rgb_ref is not None:
+                rgb_ref = torch.nan_to_num(rgb_ref)
         # rgb = self.combine_rgb(
         #     rgb, weights, background_color=self.background_color, ray_indices=ray_indices, num_rays=num_rays
         # )
         rgb = self.combine_rgb_ref(
-            rgb, rgb_ref, weights, weights_ref, background_color=self.background_color,
-            ray_indices=ray_indices, num_rays=num_rays, ray_samples=ray_samples
+            rgb, weights, background_color=self.background_color, ray_indices=ray_indices, num_rays=num_rays,
+            ray_samples=ray_samples, rgb_ref=rgb_ref, weights_ref=weights_ref,
         )
         if not self.training:
             torch.clamp_(rgb, min=0.0, max=1.0)
