@@ -39,7 +39,7 @@ We based our code on [nerfstudio](https://github.com/nerfstudio-project/nerfstud
 
 ### Dataset Preparation
 
-You can download our dataset online from our GitHub repo.
+You can download our [dataset](https://github.com/YueYin27/nerfstudio_for_engn8501/tree/main/caustics_bowl_pattern) online from our GitHub repo.
 
 Or, you can install Blender, design a 3D model and run the following command to generate your own dataset:
 ```
