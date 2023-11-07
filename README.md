@@ -18,7 +18,8 @@
 We based our code on [nerfstudio](https://github.com/nerfstudio-project/nerfstudio). The code we developed is listed below:
 
 1. Added new modules:
-    [ray_refraction.py](nerfstudio/field_components/ray_refraction.py): Calculate the intersections and surface normals of a ray with a 3d mesh given the .ply file and ray direction, and Index of Refraction(IoR). Use the intersections and normals to compute the direction of the refracted ray. Update the sample points to the new ray direction computed by *Snell's Law*.
+
+   [ray_refraction.py](nerfstudio/field_components/ray_refraction.py): Calculate the intersections and surface normals of a ray with a 3d mesh given the .ply file and ray direction, and Index of Refraction(IoR). Use the intersections and normals to compute the direction of the refracted ray. Update the sample points to the new ray direction computed by *Snell's Law*.
    
     [ray_reflection.py](nerfstudio/field_components/ray_reflection.py): Use the intersections and normals calculated in [ray_refraction.py](nerfstudio/field_components/ray_refraction.py) to compute the direction of the reflected ray. Update the sample points to the new ray direction computed by the *Law of Reflection*. 
 
