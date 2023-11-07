@@ -18,12 +18,11 @@
 We based our code on [nerfstudio](https://github.com/nerfstudio-project/nerfstudio). The code we developed is listed below:
 
 1. Added new modules:
-
-    [ray_reflection.py](nerfstudio/field_components/ray_reflection.py): Calculate the intersections and surface normals of a ray with a 3d mesh given the .ply file and ray direction. Use the intersections and normals to compute the direction of the reflected ray. Update the sample points to the new ray direction computed by the *Law of Reflection*. 
-
     [ray_refraction.py](nerfstudio/field_components/ray_refraction.py): Calculate the intersections and surface normals of a ray with a 3d mesh given the .ply file and ray direction, and Index of Refraction(IoR). Use the intersections and normals to compute the direction of the refracted ray. Update the sample points to the new ray direction computed by *Snell's Law*.
+   
+    [ray_reflection.py](nerfstudio/field_components/ray_reflection.py): Use the intersections and normals calculated in [ray_refraction.py](nerfstudio/field_components/ray_refraction.py) to compute the direction of the reflected ray. Update the sample points to the new ray direction computed by the *Law of Reflection*. 
 
-2. Added new methods:
+3. Added new methods:
 
     [rays.py](nerfstudio/cameras/rays.py): Class RaySamples: [get_refracted_rays()](https://github.com/YueYin27/nerfstudio_for_engn8501/blob/main/nerfstudio/cameras/rays.py#L185-L222), [get_reflected_rays()](https://github.com/YueYin27/nerfstudio_for_engn8501/blob/main/nerfstudio/cameras/rays.py#L224-L245): Call the methods in [ray_reflection.py](nerfstudio/field_components/ray_reflection.py) and [ray_refraction.py](nerfstudio/field_components/ray_refraction.py) to update the ray directions and sample points.
     
@@ -31,7 +30,7 @@ We based our code on [nerfstudio](https://github.com/nerfstudio-project/nerfstud
 
     [losses.py](nerfstudio/model_components/losses.py): Class DepthLossType: [lossfun_distortion_refractive](https://github.com/YueYin27/nerfstudio_for_engn8501/blob/main/nerfstudio/model_components/losses.py#L143-L176): We add the method to apply the modified distortion to our model.
 
-3. Made minor adaptions:
+4. Made minor adaptions:
 
     [ray_samplers.py](nerfstudio/model_components/ray_samplers.py): Class ProposalNetworkSampler: [generate_ray_samples()](https://github.com/YueYin27/nerfstudio_for_engn8501/blob/main/nerfstudio/model_components/ray_samplers.py#L78-L129): We modify the method to generate two separate ray samplers, one used for reflection and the other used for refraction.
 
