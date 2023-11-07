@@ -107,4 +107,4 @@ Once finished, press "RENDER", which will display a modal that contains the comm
 
 ### 4. Acknowledgements
 
-Our project is developed on the [nerfstudio](https://github.com/nerfstudio-project/nerfstudio) framework.
+Our project is built on the [nerfstudio](https://github.com/nerfstudio-project/nerfstudio) framework.
