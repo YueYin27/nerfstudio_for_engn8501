@@ -47,7 +47,7 @@ Blender modelname.blend --python dataset_customization/view_train.py -b
 Blender modelname.blend --python dataset_customization/view_val.py -b
 Blender modelname.blend --python dataset_customization/view_test.py -b
 ```
-Replace the `bowl.blend` with the name of your model.
+Replace the `modelname.blend` with the name of your model.
 
 ### Instructions for Running the Code
 
