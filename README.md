@@ -1,8 +1,9 @@
 # Dive into Caustics: 3D Reconstruction of Refractive Caustics
 
-<img src="https://github.com/YueYin27/nerfstudio_for_engn8501/blob/main/media/framework_overview.png" width="100%"/>
+<img src="https://github.com/YueYin27/nerfstudio_for_engn8501/assets/65449627/48e6652a-de05-42f8-951f-31fa84226011" width="100%"/>
 
 <table border="0" style="border: none;">
+
   <tr>
     <td>
       <img src="https://github.com/YueYin27/nerfstudio_for_engn8501/blob/main/media/nerfacto.gif" alt="Nerfacto" width="100%" />
