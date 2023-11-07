@@ -1,6 +1,6 @@
-## Readme file
+# Readme file
 
-### Table of Contents
+## Table of Contents
 
 [Code Description](#1-code-description)
 
@@ -14,7 +14,7 @@
 
 [Acknowlegdements](#4-acknowledgements)
 
-### 1. Code Description
+## 1. Code Description
 
 We based our code on [nerfstudio](https://github.com/nerfstudio-project/nerfstudio). The code we developed is listed below:
 
@@ -37,7 +37,7 @@ We based our code on [nerfstudio](https://github.com/nerfstudio-project/nerfstud
 
 [nerfacto.py](nerfstudio/models/nerfacto.py): `Class NerfactoModel` -> [`get_outputs()`](https://github.com/YueYin27/nerfstudio_for_engn8501/blob/main/nerfstudio/models/nerfacto.py#L380-L468): We modify the method to use the updated [`generate_ray_samples()`](https://github.com/YueYin27/nerfstudio_for_engn8501/blob/main/nerfstudio/model_components/ray_samplers.py#L78-L129) in [ray_samplers.py](nerfstudio/model_components/ray_samplers.py) in nerfacto model.
 
-### 2. Data Preparation
+## 2. Data Preparation
 
 You can download our [dataset](https://github.com/YueYin27/nerfstudio_for_engn8501/tree/main/caustics_bowl_pattern) online from our GitHub repo.
 
@@ -49,7 +49,7 @@ Blender modelname.blend --python dataset_customization/view_test.py -b
 ```
 Replace the `modelname.blend` with the name of your model.
 
-### 3. Instructions for Running the Code
+## 3. Instructions for Running the Code
 
 #### 1) Setup the environment
 
@@ -96,7 +96,7 @@ OUTPUT_ROOT_PATH=outputs/caustics/nerfacto/2023-11-02_194437
 ns-eval --load-config $OUTPUT_ROOT_PATH/config.yml \
         --output-path $OUTPUT_ROOT_PATH/output_test.json
 ```
-#### 4) Render the result as a video
+### 4) Render the result as a video
 Given a pre-trained model checkpoint, you can start the viewer by running
 ```
 ns-viewer --load-config {outputs/.../config.yml}
@@ -105,6 +105,6 @@ First, we must create a path for the camera to follow. This can be done in the v
 
 Once finished, press "RENDER", which will display a modal that contains the command needed to render the video. Create a new terminal and run the command to generate the video.
 
-### 4. Acknowledgements
+## 4. Acknowledgements
 
 Our project is built on the [nerfstudio](https://github.com/nerfstudio-project/nerfstudio) framework.
